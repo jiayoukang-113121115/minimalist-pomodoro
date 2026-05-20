@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>極簡番茄鐘</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* 淺色模式變數 */
+            --bg-color: #f9f9f9;
+            --text-color: #222222;
+            --secondary-text-color: #777777;
+            --primary-btn-bg: #333333;
+            --primary-btn-text: #ffffff;
+            --primary-btn-hover: #111111;
+            --secondary-btn-bg: transparent;
+            --secondary-btn-text: #555555;
+            --secondary-btn-hover-bg: #e0e0e0;
+            --focus-color: #d9534f;
+            --break-color: #5cb85c;
+            --transition-speed: 0.3s;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                /* 深色模式變數 */
+                --bg-color: #121212;
+                --text-color: #eeeeee;
+                --secondary-text-color: #aaaaaa;
+                --primary-btn-bg: #eeeeee;
+                --primary-btn-text: #121212;
+                --primary-btn-hover: #ffffff;
+                --secondary-btn-bg: transparent;
+                --secondary-btn-text: #cccccc;
+                --secondary-btn-hover-bg: #333333;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+            overflow: hidden; /* 防止滾動條影響極簡感 */
+        }
+
+        .container {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 600px;
+            padding: 2rem;
+        }
+
+        #status-text {
+            font-size: 1.25rem;
+            font-weight: 400;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            color: var(--secondary-text-color);
+            transition: color var(--transition-speed);
+            height: 1.5rem; /* 預留高度避免跳動 */
+        }
+
+        #timer-display {
+            font-size: 8rem;
+            font-weight: 300;
+            line-height: 1;
+            margin-bottom: 3rem;
+            font-variant-numeric: tabular-nums; /* 等寬數字，避免倒數時寬度跳動 */
+            letter-spacing: -0.02em;
+        }
+
+        /* 針對小螢幕調整字體大小 */
+        @media (max-width: 480px) {
+            #timer-display {
+                font-size: 6rem;
+            }
+        }
+
+        .controls {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        button {
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 400;
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 9999px; /* 圓角膠囊形狀 */
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            letter-spacing: 0.05em;
+        }
+
+        button:focus {
+            outline: 2px solid var(--secondary-text-color);
+            outline-offset: 2px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #start-btn {
+            background-color: var(--primary-btn-bg);
+            color: var(--primary-btn-text);
+        }
+
+        #start-btn:hover:not(:disabled) {
+            background-color: var(--primary-btn-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        #pause-btn, #reset-btn {
+            background-color: var(--secondary-btn-bg);
+            color: var(--secondary-btn-text);
+            border: 1px solid var(--secondary-text-color);
+        }
+
+        #pause-btn:hover:not(:disabled), #reset-btn:hover:not(:disabled) {
+            background-color: var(--secondary-btn-hover-bg);
+        }
+
+        .stats {
+            font-size: 0.875rem;
+            color: var(--secondary-text-color);
+            opacity: 0.7;
+            position: absolute;
+            bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="status-text">準備專注</div>
+        <div id="timer-display">25:00</div>
+        
+        <div class="controls">
+            <button id="start-btn" aria-label="開始計時">開始</button>
+            <button id="pause-btn" aria-label="暫停計時" disabled>暫停</button>
+            <button id="reset-btn" aria-label="重置計時器">重置</button>
+        </div>
+    </div>
+
+    <div class="stats">
+        今日完成番茄鐘：<span id="tomato-count">0</span>
+    </div>
+
+    <script>
+        // DOM 元素選取
+        const timerDisplay = document.getElementById('timer-display');
+        const statusText = document.getElementById('status-text');
+        const startBtn = document.getElementById('start-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const tomatoCountDisplay = document.getElementById('tomato-count');
+
+        // 計時器設定常數 (以秒為單位)
+        const FOCUS_TIME = 25 * 60; 
+        const BREAK_TIME = 5 * 60;  
+        
+        // 狀態變數
+        let timeLeft = FOCUS_TIME; // 當前剩餘時間
+        let timerInterval = null;  // 計時器 ID
+        let isRunning = false;     // 是否正在計時
+        let isFocusMode = true;    // 是否為專注模式
+        
+        // 本地儲存鍵值
+        const STORAGE_KEY = 'minimal_pomodoro_count';
+        const DATE_KEY = 'minimal_pomodoro_date';
+
+        // 初始化載入
+        function init() {
+            updateDisplay();
+            loadDailyStats();
+            updateDocumentTitle();
+        }
+
+        // 格式化時間 (MM:SS)
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // 更新畫面顯示
+        function updateDisplay() {
+            timerDisplay.textContent = formatTime(timeLeft);
+            
+            if (isRunning) {
+                statusText.textContent = isFocusMode ? '專注中...' : '休息中...';
+            } else {
+                if (timeLeft === FOCUS_TIME && isFocusMode) {
+                    statusText.textContent = '準備專注';
+                } else if (timeLeft === BREAK_TIME && !isFocusMode) {
+                    statusText.textContent = '準備休息';
+                } else {
+                    statusText.textContent = '已暫停';
+                }
+            }
+        }
+
+        // 更新網頁標題 (Document Title)
+        function updateDocumentTitle() {
+            const timeString = formatTime(timeLeft);
+            let modeString = isFocusMode ? '專注' : '休息';
+            
+            if (isRunning) {
+                document.title = `(${timeString}) ${modeString}中 - 極簡番茄鐘`;
+            } else if (timeLeft !== (isFocusMode ? FOCUS_TIME : BREAK_TIME)) {
+                document.title = `(${timeString}) 已暫停 - 極簡番茄鐘`;
+            } else {
+                document.title = '極簡番茄鐘';
+            }
+        }
+
+        // 開始計時
+        function startTimer() {
+            if (isRunning) return; // 防止重複點擊
+            
+            isRunning = true;
+            updateButtonsState();
+            updateDisplay();
+            updateDocumentTitle();
+            
+            // 請求通知權限 (如果尚未授權)
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission();
+            }
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+                updateDocumentTitle();
+
+                if (timeLeft <= 0) {
+                    handleTimerComplete();
+                }
+            }, 1000);
+        }
+
+        // 暫停計時
+        function pauseTimer() {
+            if (!isRunning) return;
+            
+            clearInterval(timerInterval);
+            isRunning = false;
+            updateButtonsState();
+            updateDisplay();
+            updateDocumentTitle();
+        }
+
+        // 重置計時
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            timeLeft = isFocusMode ? FOCUS_TIME : BREAK_TIME;
+            updateButtonsState();
+            updateDisplay();
+            updateDocumentTitle();
+        }
+
+        // 處理計時結束
+        function handleTimerComplete() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            
+            playNotificationSound();
+            
+            if (isFocusMode) {
+                // 專注結束 -> 進入休息
+                incrementTomatoCount();
+                isFocusMode = false;
+                timeLeft = BREAK_TIME;
+                statusText.textContent = '休息時間到！';
+                document.title = '(00:00) 休息時間到！';
+                showSystemNotification('專注完成！', '太棒了，現在休息 5 分鐘吧。');
+            } else {
+                // 休息結束 -> 進入專注
+                isFocusMode = true;
+                timeLeft = FOCUS_TIME;
+                statusText.textContent = '準備開始下一個專注';
+                document.title = '(00:00) 該專注囉！';
+                showSystemNotification('休息結束', '準備開始下一個番茄鐘！');
+            }
+            
+            updateButtonsState();
+            timerDisplay.textContent = '00:00'; // 強制顯示 00:00 一瞬間
+            
+            // 延遲一下再更新為新的時間，讓使用者看到 00:00
+            setTimeout(() => {
+                updateDisplay();
+            }, 3000);
+        }
+
+        // 播放輕柔提示音 (使用 Web Audio API)
+        function playNotificationSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 創建兩個振盪器產生和弦音效，聽起來較柔和
+                const playTone = (frequency, startTime, duration) => {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    
+                    oscillator.type = 'sine'; // 正弦波較為柔和
+                    oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                    
+                    // 音量包絡線：淡入淡出，避免爆音
+                    gainNode.gain.setValueAtTime(0, startTime);
+                    gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.1);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    
+                    oscillator.start(startTime);
+                    oscillator.stop(startTime + duration);
+                };
+
+                const now = audioCtx.currentTime;
+                // 播放一個簡單的兩音符提示 (例如：叮-咚)
+                playTone(523.25, now, 1.0);       // C5
+                playTone(659.25, now + 0.2, 1.5); // E5
+                
+            } catch (error) {
+                console.log("瀏覽器不支援 Web Audio API 或需要使用者互動解鎖音效");
+            }
+        }
+
+        // 顯示系統通知
+        function showSystemNotification(title, body) {
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, {
+                    body: body,
+                    icon: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🍅</text></svg>'
+                });
+            }
+        }
+
+        // 更新按鈕啟用/禁用狀態
+        function updateButtonsState() {
+            startBtn.disabled = isRunning;
+            pauseBtn.disabled = !isRunning;
+            
+            // 如果是在初始狀態，重置按鈕也可以稍微變淡，但這裡保持簡單可用
+            // resetBtn.disabled = !isRunning && timeLeft === (isFocusMode ? FOCUS_TIME : BREAK_TIME);
+        }
+
+        // 取得今日日期字串 (YYYY-MM-DD)
+        function getTodayDateString() {
+            const today = new Date();
+            return `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+        }
+
+        // 載入每日統計
+        function loadDailyStats() {
+            const savedDate = localStorage.getItem(DATE_KEY);
+            const today = getTodayDateString();
+            
+            // 如果儲存的日期不是今天，重置計數
+            if (savedDate !== today) {
+                localStorage.setItem(DATE_KEY, today);
+                localStorage.setItem(STORAGE_KEY, '0');
+                tomatoCountDisplay.textContent = '0';
+            } else {
+                const count = localStorage.getItem(STORAGE_KEY) || '0';
+                tomatoCountDisplay.textContent = count;
+            }
+        }
+
+        // 增加番茄鐘計數
+        function incrementTomatoCount() {
+            // 再次檢查日期，確保過午夜後跨日能正確重置
+            const savedDate = localStorage.getItem(DATE_KEY);
+            const today = getTodayDateString();
+            
+            let count = 0;
+            if (savedDate === today) {
+                count = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+            } else {
+                localStorage.setItem(DATE_KEY, today);
+            }
+            
+            count++;
+            localStorage.setItem(STORAGE_KEY, count.toString());
+            tomatoCountDisplay.textContent = count;
+        }
+
+        // 綁定按鈕事件
+        startBtn.addEventListener('click', startTimer);
+        pauseBtn.addEventListener('click', pauseTimer);
+        resetBtn.addEventListener('click', resetTimer);
+
+        // 初始化應用程式
+        init();
+
+    </script>
+</body>
+</html>
